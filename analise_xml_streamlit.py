@@ -86,13 +86,27 @@ if xml_di and xml_nfe_entrada:
     valor_produtos_usd = total_valor_moeda / 100
     frete_internacional = total_frete_di / 100
     frete_internacional_usd = round(total_frete_moeda / 100)  # Arredondar para inteiro
-    ipi_di = total_ipi_di / 100
-    pis_di = total_pis_di / 100
-    cofins_di = total_cofins_di / 100
-    ii_imposto = total_ii_di / 100
     
     # Calcular taxa de câmbio
     taxa_cambial = valor_produtos / valor_produtos_usd if valor_produtos_usd > 0 else 0
+    
+    # Somar tributos com Decimal para precisão (depois converter para float com 2 casas decimais)
+    total_ii_decimal = Decimal(0)
+    total_ipi_decimal = Decimal(0)
+    total_pis_decimal = Decimal(0)
+    total_cofins_decimal = Decimal(0)
+    
+    for adicao in root_di.findall('.//adicao'):
+        total_ii_decimal += Decimal(adicao.find('iiAliquotaValorRecolher').text)
+        total_ipi_decimal += Decimal(adicao.find('ipiAliquotaValorRecolher').text)
+        total_pis_decimal += Decimal(adicao.find('pisPasepAliquotaValorRecolher').text)
+        total_cofins_decimal += Decimal(adicao.find('cofinsAliquotaValorRecolher').text)
+    
+    # Converter para reais com 2 casas decimais
+    ii_imposto = round(float(total_ii_decimal / 100), 2)
+    ipi_di = round(float(total_ipi_decimal / 100), 2)
+    pis_di = round(float(total_pis_decimal / 100), 2)
+    cofins_di = round(float(total_cofins_decimal / 100), 2)
     
     # ===== LER NFe =====
     root_nfe, ns_nfe = ler_xml_conteudo(xml_nfe_entrada)
