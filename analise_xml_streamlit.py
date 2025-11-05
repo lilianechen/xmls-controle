@@ -41,48 +41,97 @@ def gerar_excel(df, nome_planilha="Resumo"):
 
 # ---------------------- ENTRADA ----------------------
 st.header("1️⃣ Nota de Entrada (Importação)")
-xml_entrada = st.file_uploader("Faça upload do XML de entrada (importação):", type="xml", key="entrada")
 
-if xml_entrada:
-    root, ns = ler_xml_conteudo(xml_entrada)
-    total = root.find(".//ns:ICMSTot", ns)
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("📋 Declaração de Importação (DI)")
+    xml_di = st.file_uploader("Upload do XML da DI:", type="xml", key="di")
+
+with col2:
+    st.subheader("📦 NFe de Entrada")
+    xml_nfe_entrada = st.file_uploader("Upload do XML da NFe de Entrada:", type="xml", key="nfe_entrada")
+
+if xml_di and xml_nfe_entrada:
+    # ===== LER DI =====
+    tree_di = ET.parse(xml_di)
+    root_di = tree_di.getroot()
     
-    vProd = float(extrair_texto(total, "ns:vProd", ns))
-    vIPI = float(extrair_texto(total, "ns:vIPI", ns))
-    vPIS = float(extrair_texto(total, "ns:vPIS", ns))
-    vCOFINS = float(extrair_texto(total, "ns:vCOFINS", ns))
-    vICMS = float(extrair_texto(total, "ns:vICMS", ns))
+    # Somar dados de todas as adições na DI
+    total_frete_di = 0
+    total_ipi_di = 0
+    total_pis_di = 0
+    total_cofins_di = 0
+    total_ii_di = 0
+    total_valor_di = 0
+    total_valor_moeda = 0
+    total_frete_moeda = 0
+    numero_di = ""
+    
+    for adicao in root_di.findall('.//adicao'):
+        if not numero_di:
+            numero_di = adicao.find('numeroDI').text
+        
+        total_valor_di += int(adicao.find('condicaoVendaValorReais').text)
+        total_valor_moeda += int(adicao.find('condicaoVendaValorMoeda').text)
+        total_frete_di += int(adicao.find('freteValorReais').text)
+        total_frete_moeda += int(adicao.find('freteValorMoedaNegociada').text)
+        total_ipi_di += int(adicao.find('ipiAliquotaValorRecolher').text)
+        total_pis_di += int(adicao.find('pisPasepAliquotaValorRecolher').text)
+        total_cofins_di += int(adicao.find('cofinsAliquotaValorRecolher').text)
+        total_ii_di += int(adicao.find('iiAliquotaValorRecolher').text)
+    
+    # Converter de centavos para reais
+    valor_produtos = total_valor_di / 100
+    valor_produtos_usd = total_valor_moeda / 100
+    frete_internacional = total_frete_di / 100
+    frete_internacional_usd = round(total_frete_moeda / 100)  # Arredondar para inteiro
+    ipi_di = total_ipi_di / 100
+    pis_di = total_pis_di / 100
+    cofins_di = total_cofins_di / 100
+    ii_imposto = total_ii_di / 100
+    
+    # ===== LER NFe =====
+    root_nfe, ns_nfe = ler_xml_conteudo(xml_nfe_entrada)
+    total_nfe = root_nfe.find(".//ns:ICMSTot", ns_nfe)
+    
+    vICMS = float(extrair_texto(total_nfe, "ns:vICMS", ns_nfe))
+    vNF = float(extrair_texto(total_nfe, "ns:vNF", ns_nfe))
 
     # AFRMM (somar se houver vários) - com Decimal para melhor precisão
     afrmm_total = Decimal(0)
-    for v in root.findall(".//ns:vAFRMM", ns):
+    for v in root_nfe.findall(".//ns:vAFRMM", ns_nfe):
         afrmm_total += Decimal(v.text)
     afrmm_total = float(afrmm_total)
 
-    # Taxa Siscomex (extraída via regex de infAdic) - busca pelo padrão "SISCOMEX foi de R$"
-    inf_cpl = root.find(".//ns:infCpl", ns)
+    # Taxa Siscomex (extraída via regex de infAdic)
+    inf_cpl = root_nfe.find(".//ns:infCpl", ns_nfe)
     taxa_siscomex = 0
     if inf_cpl is not None and inf_cpl.text:
-        # Procura por "SISCOMEX foi de R$ XXX,XX"
         match = re.search(r"SISCOMEX foi de R\$ ([\d.]+,\d{2})", inf_cpl.text)
         if match:
-            # Remove o ponto (separador de milhares) e substitui vírgula por ponto
             taxa_text = match.group(1).replace(".", "").replace(",", ".")
             taxa_siscomex = float(taxa_text)
 
-    # Extrair valor total da nota
-    vNF = float(extrair_texto(total, "ns:vNF", ns))
-
+    # Montar tabela com valores em R$ e USD
     dados_entrada = {
         "Imposto / Taxa": [
-            "Valor dos Produtos", "AFRMM", "Taxa Siscomex",
+            "Valor dos Produtos", "Frete Internacional", "AFRMM", "Taxa Siscomex",
             "IPI", "PIS", "COFINS", "ICMS",
+            "II - Imposto de Importação",
             "VALOR TOTAL DA NOTA"
         ],
         "Valor (R$)": [
-            vProd, afrmm_total, taxa_siscomex,
-            vIPI, vPIS, vCOFINS, vICMS,
+            valor_produtos, frete_internacional, afrmm_total, taxa_siscomex,
+            ipi_di, pis_di, cofins_di, vICMS,
+            ii_imposto,
             vNF
+        ],
+        "Valor (USD)": [
+            valor_produtos_usd, frete_internacional_usd, "—", "—",
+            "—", "—", "—", "—",
+            "—",
+            "—"
         ]
     }
 
@@ -90,6 +139,7 @@ if xml_entrada:
     st.dataframe(df_entrada)
     
     st.markdown(f"### 💰 **Total da Nota: R$ {vNF:,.2f}**")
+    st.markdown(f"*DI: {numero_di}*")
 
     excel_bytes = gerar_excel(df_entrada, "Entrada")
     st.download_button(
@@ -98,6 +148,8 @@ if xml_entrada:
         file_name="resumo_entrada.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+elif xml_di or xml_nfe_entrada:
+    st.warning("⚠️ Por favor, faça upload dos DOIS XMLs (DI e NFe) para processar a entrada!")
 
 # ---------------------- SAÍDA 1 ----------------------
 st.header("2️⃣ Nota de Saída 1 (individual)")
