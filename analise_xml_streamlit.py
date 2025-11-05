@@ -54,13 +54,16 @@ if xml_entrada:
         afrmm_total += Decimal(v.text)
     afrmm_total = float(afrmm_total)
 
-    # Taxa Siscomex (extraída via regex de infAdic)
+    # Taxa Siscomex (extraída via regex de infAdic) - busca pelo padrão "SISCOMEX foi de R$"
     inf_cpl = root.find(".//ns:infCpl", ns)
     taxa_siscomex = 0
     if inf_cpl is not None and inf_cpl.text:
-        match = re.search(r"([\d,]+\.\d{2})", inf_cpl.text)
+        # Procura por "SISCOMEX foi de R$ XXX,XX"
+        match = re.search(r"SISCOMEX foi de R\$ ([\d.]+,\d{2})", inf_cpl.text)
         if match:
-            taxa_siscomex = float(match.group(1).replace(",", ""))
+            # Remove o ponto (separador de milhares) e substitui vírgula por ponto
+            taxa_text = match.group(1).replace(".", "").replace(",", ".")
+            taxa_siscomex = float(taxa_text)
 
     # Extrair valor total da nota
     vNF = float(extrair_texto(total, "ns:vNF", ns))
