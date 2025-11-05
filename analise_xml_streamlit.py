@@ -91,6 +91,9 @@ if xml_di and xml_nfe_entrada:
     cofins_di = total_cofins_di / 100
     ii_imposto = total_ii_di / 100
     
+    # Calcular taxa de câmbio
+    taxa_cambial = valor_produtos / valor_produtos_usd if valor_produtos_usd > 0 else 0
+    
     # ===== LER NFe =====
     root_nfe, ns_nfe = ler_xml_conteudo(xml_nfe_entrada)
     total_nfe = root_nfe.find(".//ns:ICMSTot", ns_nfe)
@@ -140,6 +143,7 @@ if xml_di and xml_nfe_entrada:
     
     st.markdown(f"### 💰 **Total da Nota: R$ {vNF:,.2f}**")
     st.markdown(f"*DI: {numero_di}*")
+    st.markdown(f"**💱 Taxa de Câmbio Utilizada: 1 USD = R$ {taxa_cambial:.4f}**")
 
     excel_bytes = gerar_excel(df_entrada, "Entrada")
     st.download_button(
