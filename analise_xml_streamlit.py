@@ -4,6 +4,7 @@ import pandas as pd
 import re
 from collections import defaultdict
 from io import BytesIO
+from decimal import Decimal
 
 st.set_page_config(page_title="Leitor de XML - Importação e Saídas", layout="centered")
 
@@ -44,10 +45,11 @@ if xml_entrada:
     vICMS = float(extrair_texto(total, "ns:vICMS"))
     vOutro = float(extrair_texto(total, "ns:vOutro"))
 
-    # AFRMM (somar se houver vários)
-    afrmm_total = 0
+    # AFRMM (somar se houver vários) - com Decimal para melhor precisão
+    afrmm_total = Decimal(0)
     for v in root.findall(".//ns:vAFRMM", ns):
-        afrmm_total += float(v.text)
+        afrmm_total += Decimal(v.text)
+    afrmm_total = float(afrmm_total)
 
     # Taxa Siscomex (extraída via regex de infAdic)
     inf_cpl = root.find(".//ns:infCpl", ns)
@@ -57,14 +59,21 @@ if xml_entrada:
         if match:
             taxa_siscomex = float(match.group(1).replace(",", ""))
 
+    # Extrair valor total da nota
+    vNF = float(extrair_texto(total, "ns:vNF"))
+
     dados_entrada = {
         "Imposto / Taxa": [
             "Valor dos Produtos", "AFRMM", "Taxa Siscomex",
-            "IPI", "PIS", "COFINS", "ICMS", "Outros"
+            "IPI", "PIS", "COFINS", "ICMS", "Outros",
+            "━━━━━━━━━━━━━━━━━━━━",
+            "VALOR TOTAL DA NOTA"
         ],
         "Valor (R$)": [
             vProd, afrmm_total, taxa_siscomex,
-            vIPI, vPIS, vCOFINS, vICMS, vOutro
+            vIPI, vPIS, vCOFINS, vICMS, vOutro,
+            "━━━━━━━━━━━━━━━━━━━━",
+            vNF
         ]
     }
 
@@ -94,17 +103,20 @@ if xml_saida1:
     vICMS = float(extrair_texto(total, "ns:vICMS"))
     vICMSST = float(extrair_texto(total, "ns:vST"))
 
-    # Número do pedido (primeiro <xPed>)
-    xPed = root.find(".//ns:xPed", ns)
-    numero_pedido = xPed.text if xPed is not None else "N/A"
+    # Extrair valor total da nota
+    vNF_saida = float(extrair_texto(total, "ns:vNF"))
 
     dados_saida1 = {
         "Campo": [
-            "Número do Pedido", "Valor dos Produtos",
-            "IPI", "PIS", "COFINS", "ICMS", "ICMS ST"
+            "Valor dos Produtos",
+            "IPI", "PIS", "COFINS", "ICMS", "ICMS ST",
+            "━━━━━━━━━━━━━━━━━━━━",
+            "VALOR TOTAL DA NOTA"
         ],
         "Valor (R$)": [
-            numero_pedido, vProd, vIPI, vPIS, vCOFINS, vICMS, vICMSST
+            vProd, vIPI, vPIS, vCOFINS, vICMS, vICMSST,
+            "━━━━━━━━━━━━━━━━━━━━",
+            vNF_saida
         ]
     }
 
