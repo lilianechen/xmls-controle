@@ -11,9 +11,12 @@ st.set_page_config(page_title="Leitor de XML - Importação e Saídas", layout="
 st.title("📦 Leitor de XMLs - Entrada e Saídas de Importação")
 
 # ---------------------- FUNÇÕES AUXILIARES ----------------------
-def extrair_texto(elemento, caminho, default="0"):
+def extrair_texto(elemento, caminho, ns=None, default="0"):
     """Retorna o valor do nó se existir"""
-    el = elemento.find(caminho)
+    if ns:
+        el = elemento.find(caminho, ns)
+    else:
+        el = elemento.find(caminho)
     return el.text if el is not None else default
 
 def ler_xml_conteudo(uploaded_file):
@@ -38,12 +41,12 @@ if xml_entrada:
     root, ns = ler_xml_conteudo(xml_entrada)
     total = root.find(".//ns:ICMSTot", ns)
     
-    vProd = float(extrair_texto(total, "ns:vProd"))
-    vIPI = float(extrair_texto(total, "ns:vIPI"))
-    vPIS = float(extrair_texto(total, "ns:vPIS"))
-    vCOFINS = float(extrair_texto(total, "ns:vCOFINS"))
-    vICMS = float(extrair_texto(total, "ns:vICMS"))
-    vOutro = float(extrair_texto(total, "ns:vOutro"))
+    vProd = float(extrair_texto(total, "ns:vProd", ns))
+    vIPI = float(extrair_texto(total, "ns:vIPI", ns))
+    vPIS = float(extrair_texto(total, "ns:vPIS", ns))
+    vCOFINS = float(extrair_texto(total, "ns:vCOFINS", ns))
+    vICMS = float(extrair_texto(total, "ns:vICMS", ns))
+    vOutro = float(extrair_texto(total, "ns:vOutro", ns))
 
     # AFRMM (somar se houver vários) - com Decimal para melhor precisão
     afrmm_total = Decimal(0)
@@ -60,25 +63,25 @@ if xml_entrada:
             taxa_siscomex = float(match.group(1).replace(",", ""))
 
     # Extrair valor total da nota
-    vNF = float(extrair_texto(total, "ns:vNF"))
+    vNF = float(extrair_texto(total, "ns:vNF", ns))
 
     dados_entrada = {
         "Imposto / Taxa": [
             "Valor dos Produtos", "AFRMM", "Taxa Siscomex",
             "IPI", "PIS", "COFINS", "ICMS", "Outros",
-            "━━━━━━━━━━━━━━━━━━━━",
             "VALOR TOTAL DA NOTA"
         ],
         "Valor (R$)": [
             vProd, afrmm_total, taxa_siscomex,
             vIPI, vPIS, vCOFINS, vICMS, vOutro,
-            "━━━━━━━━━━━━━━━━━━━━",
             vNF
         ]
     }
 
     df_entrada = pd.DataFrame(dados_entrada)
     st.dataframe(df_entrada)
+    
+    st.markdown(f"### 💰 **Total da Nota: R$ {vNF:,.2f}**")
 
     excel_bytes = gerar_excel(df_entrada, "Entrada")
     st.download_button(
@@ -96,32 +99,32 @@ if xml_saida1:
     root, ns = ler_xml_conteudo(xml_saida1)
     total = root.find(".//ns:ICMSTot", ns)
     
-    vProd = float(extrair_texto(total, "ns:vProd"))
-    vIPI = float(extrair_texto(total, "ns:vIPI"))
-    vPIS = float(extrair_texto(total, "ns:vPIS"))
-    vCOFINS = float(extrair_texto(total, "ns:vCOFINS"))
-    vICMS = float(extrair_texto(total, "ns:vICMS"))
-    vICMSST = float(extrair_texto(total, "ns:vST"))
+    vProd = float(extrair_texto(total, "ns:vProd", ns))
+    vIPI = float(extrair_texto(total, "ns:vIPI", ns))
+    vPIS = float(extrair_texto(total, "ns:vPIS", ns))
+    vCOFINS = float(extrair_texto(total, "ns:vCOFINS", ns))
+    vICMS = float(extrair_texto(total, "ns:vICMS", ns))
+    vICMSST = float(extrair_texto(total, "ns:vST", ns))
 
     # Extrair valor total da nota
-    vNF_saida = float(extrair_texto(total, "ns:vNF"))
+    vNF_saida = float(extrair_texto(total, "ns:vNF", ns))
 
     dados_saida1 = {
         "Campo": [
             "Valor dos Produtos",
             "IPI", "PIS", "COFINS", "ICMS", "ICMS ST",
-            "━━━━━━━━━━━━━━━━━━━━",
             "VALOR TOTAL DA NOTA"
         ],
         "Valor (R$)": [
             vProd, vIPI, vPIS, vCOFINS, vICMS, vICMSST,
-            "━━━━━━━━━━━━━━━━━━━━",
             vNF_saida
         ]
     }
 
     df_saida1 = pd.DataFrame(dados_saida1)
     st.dataframe(df_saida1)
+    
+    st.markdown(f"### 💰 **Total da Nota: R$ {vNF_saida:,.2f}**")
 
     excel_bytes = gerar_excel(df_saida1, "Saida1")
     st.download_button(
@@ -142,17 +145,16 @@ if xml_saida2:
         root, ns = ler_xml_conteudo(arquivo)
         total = root.find(".//ns:ICMSTot", ns)
 
-        vProd = float(extrair_texto(total, "ns:vProd"))
-        vIPI = float(extrair_texto(total, "ns:vIPI"))
-        vPIS = float(extrair_texto(total, "ns:vPIS"))
-        vCOFINS = float(extrair_texto(total, "ns:vCOFINS"))
-        vICMS = float(extrair_texto(total, "ns:vICMS"))
-        vICMSST = float(extrair_texto(total, "ns:vST"))
+        vProd = float(extrair_texto(total, "ns:vProd", ns))
+        vIPI = float(extrair_texto(total, "ns:vIPI", ns))
+        vPIS = float(extrair_texto(total, "ns:vPIS", ns))
+        vCOFINS = float(extrair_texto(total, "ns:vCOFINS", ns))
+        vICMS = float(extrair_texto(total, "ns:vICMS", ns))
+        vICMSST = float(extrair_texto(total, "ns:vST", ns))
 
         xPed_tag = root.find(".//ns:xPed", ns)
         if xPed_tag is not None and xPed_tag.text:
-            num_pedido_completo = xPed_tag.text.strip()
-            num_pedido = num_pedido_completo[:5]  # primeiros 5 caracteres
+            num_pedido = xPed_tag.text.strip()  # número de pedido completo
         else:
             num_pedido = "N/A"
 
