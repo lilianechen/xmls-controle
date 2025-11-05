@@ -142,7 +142,7 @@ st.header("3️⃣ Lote de Saída 2 (múltiplos XMLs)")
 xml_saida2 = st.file_uploader("Faça upload dos XMLs da Saída 2 (vários arquivos):", type="xml", accept_multiple_files=True, key="saida2")
 
 if xml_saida2:
-    consolidado = defaultdict(lambda: {"vProd":0, "IPI":0, "PIS":0, "COFINS":0, "ICMS":0, "ICMSST":0})
+    consolidado = defaultdict(lambda: {"vProd":0, "IPI":0, "PIS":0, "COFINS":0, "ICMS":0, "ICMSST":0, "vNF":0})
     
     for arquivo in xml_saida2:
         root, ns = ler_xml_conteudo(arquivo)
@@ -154,6 +154,7 @@ if xml_saida2:
         vCOFINS = float(extrair_texto(total, "ns:vCOFINS", ns))
         vICMS = float(extrair_texto(total, "ns:vICMS", ns))
         vICMSST = float(extrair_texto(total, "ns:vST", ns))
+        vNF = float(extrair_texto(total, "ns:vNF", ns))
 
         xPed_tag = root.find(".//ns:xPed", ns)
         if xPed_tag is not None and xPed_tag.text:
@@ -167,6 +168,7 @@ if xml_saida2:
         consolidado[num_pedido]["COFINS"] += vCOFINS
         consolidado[num_pedido]["ICMS"] += vICMS
         consolidado[num_pedido]["ICMSST"] += vICMSST
+        consolidado[num_pedido]["vNF"] += vNF
 
     df_saida2 = pd.DataFrame([
         {"Pedido": ped,
@@ -175,13 +177,14 @@ if xml_saida2:
          "PIS": val["PIS"],
          "COFINS": val["COFINS"],
          "ICMS": val["ICMS"],
-         "ICMS ST": val["ICMSST"]}
+         "ICMS ST": val["ICMSST"],
+         "Total da Nota": val["vNF"]}
         for ped, val in consolidado.items()
     ])
 
     st.dataframe(df_saida2)
 
-    total_geral = df_saida2[["Produtos","IPI","PIS","COFINS","ICMS","ICMS ST"]].sum()
+    total_geral = df_saida2[["Produtos","IPI","PIS","COFINS","ICMS","ICMS ST","Total da Nota"]].sum()
     total_df = pd.DataFrame(total_geral).T
     total_df.index = ["TOTAL GERAL"]
 
