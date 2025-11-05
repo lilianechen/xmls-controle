@@ -1,0 +1,181 @@
+import streamlit as st
+import xml.etree.ElementTree as ET
+import pandas as pd
+import re
+from collections import defaultdict
+from io import BytesIO
+
+st.set_page_config(page_title="Leitor de XML - Importação e Saídas", layout="centered")
+
+st.title("📦 Leitor de XMLs - Entrada e Saídas de Importação")
+
+# ---------------------- FUNÇÕES AUXILIARES ----------------------
+def extrair_texto(elemento, caminho, default="0"):
+    """Retorna o valor do nó se existir"""
+    el = elemento.find(caminho)
+    return el.text if el is not None else default
+
+def ler_xml_conteudo(uploaded_file):
+    """Carrega e parseia o XML"""
+    tree = ET.parse(uploaded_file)
+    root = tree.getroot()
+    ns = {"ns": "http://www.portalfiscal.inf.br/nfe"}
+    return root, ns
+
+def gerar_excel(df, nome_planilha="Resumo"):
+    """Cria arquivo Excel em memória para download"""
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name=nome_planilha)
+    return output.getvalue()
+
+# ---------------------- ENTRADA ----------------------
+st.header("1️⃣ Nota de Entrada (Importação)")
+xml_entrada = st.file_uploader("Faça upload do XML de entrada (importação):", type="xml", key="entrada")
+
+if xml_entrada:
+    root, ns = ler_xml_conteudo(xml_entrada)
+    total = root.find(".//ns:ICMSTot", ns)
+    
+    vProd = float(extrair_texto(total, "ns:vProd"))
+    vIPI = float(extrair_texto(total, "ns:vIPI"))
+    vPIS = float(extrair_texto(total, "ns:vPIS"))
+    vCOFINS = float(extrair_texto(total, "ns:vCOFINS"))
+    vICMS = float(extrair_texto(total, "ns:vICMS"))
+    vOutro = float(extrair_texto(total, "ns:vOutro"))
+
+    # AFRMM (somar se houver vários)
+    afrmm_total = 0
+    for v in root.findall(".//ns:vAFRMM", ns):
+        afrmm_total += float(v.text)
+
+    # Taxa Siscomex (extraída via regex de infAdic)
+    inf_cpl = root.find(".//ns:infCpl", ns)
+    taxa_siscomex = 0
+    if inf_cpl is not None and inf_cpl.text:
+        match = re.search(r"([\d,]+\.\d{2})", inf_cpl.text)
+        if match:
+            taxa_siscomex = float(match.group(1).replace(",", ""))
+
+    dados_entrada = {
+        "Imposto / Taxa": [
+            "Valor dos Produtos", "AFRMM", "Taxa Siscomex",
+            "IPI", "PIS", "COFINS", "ICMS", "Outros"
+        ],
+        "Valor (R$)": [
+            vProd, afrmm_total, taxa_siscomex,
+            vIPI, vPIS, vCOFINS, vICMS, vOutro
+        ]
+    }
+
+    df_entrada = pd.DataFrame(dados_entrada)
+    st.dataframe(df_entrada)
+
+    excel_bytes = gerar_excel(df_entrada, "Entrada")
+    st.download_button(
+        label="💾 Baixar resumo de entrada (Excel)",
+        data=excel_bytes,
+        file_name="resumo_entrada.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# ---------------------- SAÍDA 1 ----------------------
+st.header("2️⃣ Nota de Saída 1 (individual)")
+xml_saida1 = st.file_uploader("Faça upload do XML da Saída 1:", type="xml", key="saida1")
+
+if xml_saida1:
+    root, ns = ler_xml_conteudo(xml_saida1)
+    total = root.find(".//ns:ICMSTot", ns)
+    
+    vProd = float(extrair_texto(total, "ns:vProd"))
+    vIPI = float(extrair_texto(total, "ns:vIPI"))
+    vPIS = float(extrair_texto(total, "ns:vPIS"))
+    vCOFINS = float(extrair_texto(total, "ns:vCOFINS"))
+    vICMS = float(extrair_texto(total, "ns:vICMS"))
+    vICMSST = float(extrair_texto(total, "ns:vST"))
+
+    # Número do pedido (primeiro <xPed>)
+    xPed = root.find(".//ns:xPed", ns)
+    numero_pedido = xPed.text if xPed is not None else "N/A"
+
+    dados_saida1 = {
+        "Campo": [
+            "Número do Pedido", "Valor dos Produtos",
+            "IPI", "PIS", "COFINS", "ICMS", "ICMS ST"
+        ],
+        "Valor (R$)": [
+            numero_pedido, vProd, vIPI, vPIS, vCOFINS, vICMS, vICMSST
+        ]
+    }
+
+    df_saida1 = pd.DataFrame(dados_saida1)
+    st.dataframe(df_saida1)
+
+    excel_bytes = gerar_excel(df_saida1, "Saida1")
+    st.download_button(
+        label="💾 Baixar resumo Saída 1 (Excel)",
+        data=excel_bytes,
+        file_name="resumo_saida1.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# ---------------------- SAÍDA 2 (LOTE) ----------------------
+st.header("3️⃣ Lote de Saída 2 (múltiplos XMLs)")
+xml_saida2 = st.file_uploader("Faça upload dos XMLs da Saída 2 (vários arquivos):", type="xml", accept_multiple_files=True, key="saida2")
+
+if xml_saida2:
+    consolidado = defaultdict(lambda: {"vProd":0, "IPI":0, "PIS":0, "COFINS":0, "ICMS":0, "ICMSST":0})
+    
+    for arquivo in xml_saida2:
+        root, ns = ler_xml_conteudo(arquivo)
+        total = root.find(".//ns:ICMSTot", ns)
+
+        vProd = float(extrair_texto(total, "ns:vProd"))
+        vIPI = float(extrair_texto(total, "ns:vIPI"))
+        vPIS = float(extrair_texto(total, "ns:vPIS"))
+        vCOFINS = float(extrair_texto(total, "ns:vCOFINS"))
+        vICMS = float(extrair_texto(total, "ns:vICMS"))
+        vICMSST = float(extrair_texto(total, "ns:vST"))
+
+        xPed_tag = root.find(".//ns:xPed", ns)
+        if xPed_tag is not None and xPed_tag.text:
+            num_pedido_completo = xPed_tag.text.strip()
+            num_pedido = num_pedido_completo[:5]  # primeiros 5 caracteres
+        else:
+            num_pedido = "N/A"
+
+        consolidado[num_pedido]["vProd"] += vProd
+        consolidado[num_pedido]["IPI"] += vIPI
+        consolidado[num_pedido]["PIS"] += vPIS
+        consolidado[num_pedido]["COFINS"] += vCOFINS
+        consolidado[num_pedido]["ICMS"] += vICMS
+        consolidado[num_pedido]["ICMSST"] += vICMSST
+
+    df_saida2 = pd.DataFrame([
+        {"Pedido": ped,
+         "Produtos": val["vProd"],
+         "IPI": val["IPI"],
+         "PIS": val["PIS"],
+         "COFINS": val["COFINS"],
+         "ICMS": val["ICMS"],
+         "ICMS ST": val["ICMSST"]}
+        for ped, val in consolidado.items()
+    ])
+
+    st.dataframe(df_saida2)
+
+    total_geral = df_saida2[["Produtos","IPI","PIS","COFINS","ICMS","ICMS ST"]].sum()
+    total_df = pd.DataFrame(total_geral).T
+    total_df.index = ["TOTAL GERAL"]
+
+    st.subheader("🧮 Total Geral do Lote")
+    st.dataframe(total_df)
+
+    # Exportação Excel
+    excel_bytes = gerar_excel(df_saida2, "Saida2_Lote")
+    st.download_button(
+        label="💾 Baixar resumo Saída 2 (Excel)",
+        data=excel_bytes,
+        file_name="resumo_saida2_lote.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
