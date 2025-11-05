@@ -5,10 +5,16 @@ import re
 from collections import defaultdict
 from io import BytesIO
 from decimal import Decimal
+import time
+
+# Forçar limpeza de cache
+st.cache_data.clear()
 
 st.set_page_config(page_title="Leitor de XML - Importação e Saídas", layout="centered")
 
 st.title("📦 Leitor de XMLs - Entrada e Saídas de Importação")
+
+# Versão v2.1 - Remove linha "Outros" duplicada
 
 # ---------------------- FUNÇÕES AUXILIARES ----------------------
 def extrair_texto(elemento, caminho, ns=None, default="0"):
@@ -46,7 +52,6 @@ if xml_entrada:
     vPIS = float(extrair_texto(total, "ns:vPIS", ns))
     vCOFINS = float(extrair_texto(total, "ns:vCOFINS", ns))
     vICMS = float(extrair_texto(total, "ns:vICMS", ns))
-    vOutro = float(extrair_texto(total, "ns:vOutro", ns))
 
     # AFRMM (somar se houver vários) - com Decimal para melhor precisão
     afrmm_total = Decimal(0)
@@ -71,12 +76,12 @@ if xml_entrada:
     dados_entrada = {
         "Imposto / Taxa": [
             "Valor dos Produtos", "AFRMM", "Taxa Siscomex",
-            "IPI", "PIS", "COFINS", "ICMS", "Outros",
+            "IPI", "PIS", "COFINS", "ICMS",
             "VALOR TOTAL DA NOTA"
         ],
         "Valor (R$)": [
             vProd, afrmm_total, taxa_siscomex,
-            vIPI, vPIS, vCOFINS, vICMS, vOutro,
+            vIPI, vPIS, vCOFINS, vICMS,
             vNF
         ]
     }
